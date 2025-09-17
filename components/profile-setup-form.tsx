@@ -64,15 +64,19 @@ export function ProfileSetupForm({ user, onProfileComplete }: ProfileSetupFormPr
         fitnessLevel: formData.fitnessLevel,
       }
 
+      console.log("[v0] Submitting profile:", profile)
       const response = await apiClient.saveProfile(profile)
+      console.log("[v0] Profile save response:", response)
 
       if (response.success) {
+        console.log("[v0] Profile saved successfully")
         onProfileComplete(profile)
       } else {
+        console.error("[v0] Profile save failed:", response.error)
         alert(response.error || "Failed to save profile")
       }
     } catch (error) {
-      console.error("Profile save error:", error)
+      console.error("[v0] Profile save error:", error)
       alert("Network error occurred")
     } finally {
       setIsLoading(false)

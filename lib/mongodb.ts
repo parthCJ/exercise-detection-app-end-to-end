@@ -7,12 +7,20 @@ let client: MongoClient
 let db: Db
 
 export async function connectToDatabase() {
-  if (!client) {
-    client = new MongoClient(uri)
-    await client.connect()
-    db = client.db(dbName)
+  try {
+    if (!client) {
+      console.log("[v0] Connecting to MongoDB at:", uri)
+      client = new MongoClient(uri)
+      await client.connect()
+      console.log("[v0] MongoDB connection established")
+      db = client.db(dbName)
+      console.log("[v0] Using database:", dbName)
+    }
+    return { client, db }
+  } catch (error) {
+    console.error("[v0] MongoDB connection error:", error)
+    throw error
   }
-  return { client, db }
 }
 
 export async function getDatabase() {

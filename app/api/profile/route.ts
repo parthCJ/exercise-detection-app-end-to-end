@@ -4,14 +4,25 @@ import { ObjectId } from "mongodb"
 
 export async function POST(request: NextRequest) {
   try {
+    console.log("[v0] Profile API called")
     const profileData = await request.json()
-    const db = await getDatabase()
+    console.log("[v0] Profile data received:", profileData)
 
     // Validate required fields
     if (!profileData.email || !profileData.height || !profileData.weight) {
+      console.log("[v0] Missing required fields:", {
+        email: !!profileData.email,
+        height: !!profileData.height,
+        weight: !!profileData.weight,
+      })
       return NextResponse.json({ success: false, error: "Missing required fields" }, { status: 400 })
     }
 
+    console.log("[v0] Connecting to database...")
+    const db = await getDatabase()
+    console.log("[v0] Database connected successfully")
+
+    console.log("[v0] Attempting to save profile for email:", profileData.email)
     const result = await db.collection(collections.profiles).findOneAndUpdate(
       { email: profileData.email },
       {
@@ -29,6 +40,8 @@ export async function POST(request: NextRequest) {
       },
     )
 
+    console.log("[v0] Profile save result:", result.value ? "Success" : "Failed")
+
     return NextResponse.json({
       success: true,
       profile: {
@@ -37,8 +50,14 @@ export async function POST(request: NextRequest) {
       },
     })
   } catch (error) {
-    console.error("[v0] Profile save error:", error)
-    return NextResponse.json({ success: false, error: "Failed to save profile" }, { status: 500 })
+    console.error("[v0] Profile save error details:", error)
+    return NextResponse.json(
+      {
+        success: false,
+        error: `Failed to save profile: ${error instanceof Error ? error.message : "Unknown error"}`,
+      },
+      { status: 500 },
+    )
   }
 }
 
