@@ -40,13 +40,19 @@ export async function POST(request: NextRequest) {
       },
     )
 
-    console.log("[v0] Profile save result:", result.value ? "Success" : "Failed")
+    console.log("[v0] Profile save result:", result ? "Success" : "Failed")
+
+    // Fixed null check for result before accessing _id
+    if (!result) {
+      console.error("[v0] No result returned from database operation")
+      return NextResponse.json({ success: false, error: "Failed to save profile" }, { status: 500 })
+    }
 
     return NextResponse.json({
       success: true,
       profile: {
-        ...result.value,
-        id: result.value._id.toString(),
+        ...result,
+        id: result._id ? result._id.toString() : undefined,
       },
     })
   } catch (error) {
