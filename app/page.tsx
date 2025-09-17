@@ -315,7 +315,7 @@ export default function LandingPage() {
             </div>
             <span className="text-lg font-semibold">FitDetect</span>
           </div>
-          <p className="text-gray-400">© 2025 FitDetect. All rights reserved.</p>
+          <p className="text-gray-400">© 2024 FitDetect. All rights reserved.</p>
         </div>
       </footer>
 

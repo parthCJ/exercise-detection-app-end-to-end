@@ -3,6 +3,8 @@
 export interface ApiResponse<T = any> {
   success: boolean
   data?: T
+  user?: any
+  profile?: any
   error?: string
   message?: string
 }
@@ -44,6 +46,14 @@ class ApiClient {
         body: JSON.stringify(data),
       })
 
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        return {
+          success: false,
+          error: errorData.error || `HTTP ${response.status}: ${response.statusText}`,
+        }
+      }
+
       const result = await response.json()
       return result
     } catch (error) {
@@ -65,6 +75,15 @@ class ApiClient {
       }
 
       const response = await fetch(url.toString())
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        return {
+          success: false,
+          error: errorData.error || `HTTP ${response.status}: ${response.statusText}`,
+        }
+      }
+
       const result = await response.json()
       return result
     } catch (error) {

@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Ruler, Weight, User, ArrowRight } from "lucide-react"
+import { apiClient } from "@/lib/api-client"
 
 interface ProfileSetupFormProps {
   user: { email: string; name: string }
@@ -51,8 +52,7 @@ export function ProfileSetupForm({ user, onProfileComplete }: ProfileSetupFormPr
 
     setIsLoading(true)
 
-    // Simulate API call
-    setTimeout(() => {
+    try {
       const profile: UserProfile = {
         email: user.email,
         name: user.name,
@@ -64,9 +64,19 @@ export function ProfileSetupForm({ user, onProfileComplete }: ProfileSetupFormPr
         fitnessLevel: formData.fitnessLevel,
       }
 
+      const response = await apiClient.saveProfile(profile)
+
+      if (response.success) {
+        onProfileComplete(profile)
+      } else {
+        alert(response.error || "Failed to save profile")
+      }
+    } catch (error) {
+      console.error("Profile save error:", error)
+      alert("Network error occurred")
+    } finally {
       setIsLoading(false)
-      onProfileComplete(profile)
-    }, 1000)
+    }
   }
 
   return (

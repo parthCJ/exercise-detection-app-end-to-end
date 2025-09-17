@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { X, Mail, Lock, User, Eye, EyeOff } from "lucide-react"
+import { apiClient } from "@/lib/api-client"
 
 interface AuthModalProps {
   isOpen: boolean
@@ -34,11 +35,19 @@ export function AuthModal({ isOpen, onClose, onAuthSuccess }: AuthModalProps) {
     e.preventDefault()
     setIsLoading(true)
 
-    // Simulate API call
-    setTimeout(() => {
+    try {
+      const response = await apiClient.signIn(formData.email, formData.password)
+      if (response.success && response.user) {
+        onAuthSuccess({ email: response.user.email, name: response.user.name })
+      } else {
+        alert(response.error || "Sign in failed")
+      }
+    } catch (error) {
+      console.error("Sign in error:", error)
+      alert("Network error occurred")
+    } finally {
       setIsLoading(false)
-      onAuthSuccess({ email: formData.email, name: formData.name || formData.email.split("@")[0] })
-    }, 1000)
+    }
   }
 
   const handleSignUp = async (e: React.FormEvent) => {
@@ -50,11 +59,19 @@ export function AuthModal({ isOpen, onClose, onAuthSuccess }: AuthModalProps) {
 
     setIsLoading(true)
 
-    // Simulate API call
-    setTimeout(() => {
+    try {
+      const response = await apiClient.signUp(formData.email, formData.password, formData.name)
+      if (response.success && response.user) {
+        onAuthSuccess({ email: response.user.email, name: response.user.name })
+      } else {
+        alert(response.error || "Sign up failed")
+      }
+    } catch (error) {
+      console.error("Sign up error:", error)
+      alert("Network error occurred")
+    } finally {
       setIsLoading(false)
-      onAuthSuccess({ email: formData.email, name: formData.name })
-    }, 1000)
+    }
   }
 
   if (!isOpen) return null
