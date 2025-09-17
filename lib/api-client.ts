@@ -140,6 +140,14 @@ class ApiClient {
   async executePythonScript(exerciseType: string, sessionId: string, cameraData?: any) {
     return this.post("/python/execute", { exerciseType, sessionId, cameraData })
   }
+
+  async generateWorkoutPlot(userId: string, exerciseType: string) {
+    return this.post("/workout/generate-plot", { userId, exerciseType })
+  }
+
+  async resetPythonSession(exerciseType: string, sessionId: string) {
+    return this.post("/python/execute", { exerciseType, sessionId, action: "reset" })
+  }
 }
 
 export const apiClient = new ApiClient()

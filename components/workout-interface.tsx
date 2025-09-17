@@ -98,6 +98,10 @@ export function WorkoutInterface({ exercise, userProfile, onBack, onWorkoutCompl
 
         setWorkoutStats((prev) => ({ ...prev, isActive: true }))
 
+        if (exercise.id === "pushups") {
+          await apiClient.resetPythonSession(exercise.id, response.data.id)
+        }
+
         // Start the detection loop
         startDetectionLoop(response.data.id)
 
@@ -139,7 +143,9 @@ export function WorkoutInterface({ exercise, userProfile, onBack, onWorkoutCompl
         })
 
         if (response.success && response.data) {
-          const { reps, formScore, feedback, confidence } = response.data
+          const { reps, formScore, feedback, confidence, totalReps } = response.data
+
+          const actualReps = exercise.id === "pushups" ? totalReps || 0 : workoutStats.reps + (reps || 0)
 
           // Update workout stats
           setWorkoutStats((prev) => {
@@ -151,7 +157,7 @@ export function WorkoutInterface({ exercise, userProfile, onBack, onWorkoutCompl
 
             return {
               ...prev,
-              reps: prev.reps + (reps || 0),
+              reps: actualReps,
               duration: newDuration,
               calories: newCalories,
               formScore: formScore || prev.formScore,
