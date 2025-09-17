@@ -1,6 +1,6 @@
 import { MongoClient, type Db } from "mongodb"
 
-const uri = "mongodb://localhost:27017"
+const uri = "mongodb+srv://parthsharmacj:5FF1pResiIG1WrQ5@witty-parth-cluster.x1xgrxe.mongodb.net/"
 const dbName = "fitness_app"
 
 let client: MongoClient
