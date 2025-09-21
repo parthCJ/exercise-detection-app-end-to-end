@@ -3,6 +3,7 @@
 export interface ApiResponse<T = any> {
   success: boolean
   data?: T
+  session?: any // For /workout/start response
   user?: any
   profile?: any
   error?: string
@@ -125,7 +126,8 @@ class ApiClient {
 
   // Workout methods
   async startWorkout(exerciseId: string, userId: string, userProfile: UserProfile) {
-    return this.post<WorkoutSession>("/workout/start", { exerciseId, userId, userProfile })
+    // The backend returns { success, session, ... }
+    return this.post<{ session: WorkoutSession }>("/workout/start", { exerciseId, userId, userProfile })
   }
 
   async updateWorkout(sessionId: string, data: Partial<WorkoutSession>) {
