@@ -1,6 +1,9 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
+import * as poseDetection from '@tensorflow-models/pose-detection';
+import * as tf from '@tensorflow/tfjs';
+import '@tensorflow/tfjs-backend-webgl';
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -51,6 +54,104 @@ export function WorkoutInterface({ exercise, userProfile, onBack, onWorkoutCompl
 
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const poseCanvasRef = useRef<HTMLCanvasElement>(null)
+  // Pose detection effect
+  useEffect(() => {
+    let detector: poseDetection.PoseDetector | null = null;
+    let animationId: number;
+
+    async function runPoseDetection() {
+      await tf.setBackend('webgl');
+      await tf.ready();
+      detector = await poseDetection.createDetector(poseDetection.SupportedModels.MoveNet, {
+        modelType: poseDetection.movenet.modelType.SINGLEPOSE_LIGHTNING,
+      });
+      detect();
+    }
+
+    async function detect() {
+      if (videoRef.current && poseCanvasRef.current && detector) {
+        poseCanvasRef.current.width = videoRef.current.videoWidth;
+        poseCanvasRef.current.height = videoRef.current.videoHeight;
+        const poses = await detector.estimatePoses(videoRef.current);
+        drawPoses(poses, poseCanvasRef.current);
+      }
+      animationId = requestAnimationFrame(detect);
+    }
+
+    function drawPoses(poses: poseDetection.Pose[], canvas: HTMLCanvasElement) {
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      poses.forEach(pose => {
+        // Draw keypoints
+        pose.keypoints.forEach(kp => {
+          if (kp.score && kp.score > 0.3) {
+            ctx.beginPath();
+            ctx.arc(kp.x, kp.y, 5, 0, 2 * Math.PI);
+            ctx.fillStyle = 'red';
+            ctx.fill();
+          }
+        });
+
+        // Helper to get keypoint by name
+        const getKp = (name: string) => pose.keypoints.find(k => k.name === name);
+
+        // Draw and calculate for both arms
+        const arms = [
+          { s: 'right_shoulder', e: 'right_elbow', w: 'right_wrist', color: 'blue' },
+          { s: 'left_shoulder', e: 'left_elbow', w: 'left_wrist', color: 'green' },
+        ];
+        arms.forEach(({ s, e, w, color }) => {
+          const shoulder = getKp(s);
+          const elbow = getKp(e);
+          const wrist = getKp(w);
+          if (
+            shoulder && elbow && wrist &&
+            shoulder.score !== undefined && shoulder.score > 0.3 &&
+            elbow.score !== undefined && elbow.score > 0.3 &&
+            wrist.score !== undefined && wrist.score > 0.3
+          ) {
+            // Draw lines
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(shoulder.x, shoulder.y);
+            ctx.lineTo(elbow.x, elbow.y);
+            ctx.lineTo(wrist.x, wrist.y);
+            ctx.stroke();
+
+            // Calculate angle
+            const angle = calcAngle(shoulder, elbow, wrist);
+            // Draw angle text
+            ctx.fillStyle = color === 'blue' ? 'yellow' : 'lime';
+            ctx.font = '20px Arial';
+            ctx.fillText(`${Math.round(angle)}°`, elbow.x + 10, elbow.y - 10);
+          }
+        });
+      });
+    }
+
+    // Helper to calculate angle between three points (shoulder, elbow, wrist)
+    function calcAngle(a: any, b: any, c: any) {
+      const ab = { x: a.x - b.x, y: a.y - b.y };
+      const cb = { x: c.x - b.x, y: c.y - b.y };
+      const dot = ab.x * cb.x + ab.y * cb.y;
+      const magAB = Math.sqrt(ab.x * ab.x + ab.y * ab.y);
+      const magCB = Math.sqrt(cb.x * cb.x + cb.y * cb.y);
+      const cosine = dot / (magAB * magCB);
+      return Math.acos(cosine) * (180 / Math.PI);
+    }
+
+    if (cameraActive) {
+      runPoseDetection();
+    }
+
+    return () => {
+      if (animationId) cancelAnimationFrame(animationId);
+      if (detector) detector.dispose();
+    };
+  }, [cameraActive]);
   const intervalRef = useRef<NodeJS.Timeout | null>(null)
   const startTimeRef = useRef<number | null>(null)
 
@@ -91,19 +192,19 @@ export function WorkoutInterface({ exercise, userProfile, onBack, onWorkoutCompl
     try {
       const response = await apiClient.startWorkout(exercise.id, userProfile.email, userProfile)
 
-      if (response.success && response.data) {
-        setSessionId(response.data.id)
+      if (response.success && response.session) {
+        setSessionId(response.session.id)
         setWorkoutActive(true)
         startTimeRef.current = Date.now()
 
         setWorkoutStats((prev) => ({ ...prev, isActive: true }))
 
         if (exercise.id === "pushups") {
-          await apiClient.resetPythonSession(exercise.id, response.data.id)
+          await apiClient.resetPythonSession(exercise.id, response.session.id)
         }
 
         // Start the detection loop
-        startDetectionLoop(response.data.id)
+        startDetectionLoop(response.session.id)
 
         console.log("[v0] Workout started successfully")
       } else {
@@ -143,7 +244,14 @@ export function WorkoutInterface({ exercise, userProfile, onBack, onWorkoutCompl
         })
 
         if (response.success && response.data) {
-          const { reps, formScore, feedback, confidence, totalReps } = response.data
+          // Use type assertion for detection response
+          const { reps, formScore, feedback, confidence, totalReps } = response.data as {
+            reps?: number;
+            formScore?: number;
+            feedback?: string;
+            confidence?: number;
+            totalReps?: number;
+          }
 
           const actualReps = exercise.id === "pushups" ? totalReps || 0 : workoutStats.reps + (reps || 0)
 
@@ -166,15 +274,16 @@ export function WorkoutInterface({ exercise, userProfile, onBack, onWorkoutCompl
           })
 
           // Update current feedback
-          if (feedback && confidence > 0.8) {
+          if (feedback && confidence && confidence > 0.8) {
             setCurrentFeedback(feedback)
             setTimeout(() => setCurrentFeedback(""), 3000)
           }
 
-          // Update session on backend
+          // Update session on backend (allow formFeedback in payload)
           await apiClient.updateWorkout(sessionId, {
             reps: workoutStats.reps + (reps || 0),
             duration: startTimeRef.current ? Math.floor((Date.now() - startTimeRef.current) / 1000) : 0,
+            // @ts-ignore
             formFeedback: feedback ? [feedback] : [],
           })
         }
@@ -191,11 +300,19 @@ export function WorkoutInterface({ exercise, userProfile, onBack, onWorkoutCompl
       intervalRef.current = null
     }
 
+
+    // Update duration one last time before ending
+    let finalDuration = workoutStats.duration;
+    if (workoutStats.isActive && startTimeRef.current) {
+      finalDuration = Math.floor((Date.now() - startTimeRef.current) / 1000);
+      setWorkoutStats((prev) => ({ ...prev, duration: finalDuration }));
+    }
+
     if (sessionId) {
       try {
         const finalStats = {
           reps: workoutStats.reps,
-          duration: workoutStats.duration,
+          duration: finalDuration,
           calories: workoutStats.calories,
           averageFormScore: workoutStats.formScore,
           achievements: workoutStats.reps > 10 ? ["Great workout!"] : [],
@@ -206,7 +323,7 @@ export function WorkoutInterface({ exercise, userProfile, onBack, onWorkoutCompl
 
         const summary: WorkoutSummary = {
           totalReps: workoutStats.reps,
-          duration: workoutStats.duration,
+          duration: finalDuration,
           caloriesBurned: workoutStats.calories,
           averageFormScore: workoutStats.formScore,
           achievements: finalStats.achievements,
@@ -273,8 +390,11 @@ export function WorkoutInterface({ exercise, userProfile, onBack, onWorkoutCompl
               </CardHeader>
               <CardContent>
                 <div className="relative bg-gray-900 rounded-lg overflow-hidden aspect-video">
-                  <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
-                  <canvas ref={canvasRef} className="hidden" />
+                  <div className="relative w-full h-full">
+                    <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover absolute top-0 left-0" />
+                    <canvas ref={poseCanvasRef} className="absolute top-0 left-0 w-full h-full pointer-events-none" />
+                    <canvas ref={canvasRef} className="hidden" />
+                  </div>
 
                   {/* Overlay feedback */}
                   {currentFeedback && (
